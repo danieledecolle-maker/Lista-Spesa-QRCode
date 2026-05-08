@@ -2,172 +2,49 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 
 /**
- * App: Spesa Smart – versione con storico prezzi
- * Funzioni aggiuntive:
- * ✅ Storico prezzi per prodotto e negozio
- * ✅ Avviso aumento di prezzo
- * ✅ Indicatore visivo ↑ ↓ =
+ * 🛒 Spesa Smart – versione con storico prezzi
+ * ✅ Storico prezzi
+ * ✅ Trend ↑ ↓ =
+ * ✅ Confronto spesa per negozio
  */
+
+type PriceEntry = {
+  store: string;
+  price: number;
+  date: string;
+};
+
+type Product = {
+  barcode: string;
+  name: string;
+  prices: PriceEntry[];
+  inList: boolean;
+};
+
 export default function ShoppingComparisonApp() {
-  const STORAGE_KEY = "shopping_app_products";
+  const STORAGE_KEY = "shopping_app_products";
 
-  const [barcode, setBarcode] = useState("");
-  const [productName, setProductName] = useState("");
-  const [store, setStore] = useState("");
-  const [price, setPrice] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [productName, setProductName] = useState("");
+  const [store, setStore] = useState("");
+  const [price, setPrice] = useState("");
 
-  const [products, setProducts] = useState<
-    {
-      barcode: string;
-      name: string;
-      prices: {
-        store: string;
-        price: number;
-        date: string; // ISO date
-      }[];
-      inList: boolean;
-    }[]
-  >([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  /* ===== SALVATAGGIO DATI ===== */
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setProducts(JSON.parse(saved));
-  }, []);
+  /* ===== CARICAMENTO / SALVATAGGIO ===== */
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) setProducts(JSON.parse(saved));
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-  }, [products]);
-
-  /* ===== AGGIUNTA / AGGIORNAMENTO PREZZO ===== */
-  const addProductPrice = () => {
-    if (!barcode || !store || !price) return;
-
-    const now = new Date().toISOString();
-
-
-    setProducts(prev => {
-      const existing = prev.find(p => p.barcode === barcode);
-
-
-      if (existing) {
-        return prev.map(p =>
-          p.barcode === barcode
-            ? {
-                ...p,
-                prices: [...p.prices, { store, price: Number(price), date: now }],
-              }
-            : p
-        );
-      }
-
-
-      return [
-        ...prev,
-        {
-          barcode,
-          name: productName || "Prodotto senza nome",
-          prices: [{ store, price: Number(price), date: now }],
-          inList: false,
-        },
-      ];
-    });
-
-    setStore("");
-    setPrice("");
-  };
-
-  const toggleInList = (barcode: string) => {
-    setProducts(prev => prev.map(p => (p.barcode === barcode ? { ...p, inList: !p.inList } : p)));
-  };
-
-  /* ===== UTILITY STORICO ===== */
-  const getLastTwoPrices = (prices: { store: string; price: number; date: string }[], store: string) => {
-    const filtered = prices.filter(p => p.store === store).sort((a, b) => b.date.localeCompare(a.date));
-    return filtered.slice(0, 2);
-  };
-  const priceTrend = (prices: { store: string; price: number; date: string }[], store: string) => {
-    const lastTwo = getLastTwoPrices(prices, store);
-    if (lastTwo.length < 2) return "=";
-    if (lastTwo[0].price > lastTwo[1].price) return "↑";
-    if (lastTwo[0].price < lastTwo[1].price) return "↓";
-    return "=";
-  };
-  /* ===== CALCOLI SPESA ===== */
-  const selectedProducts = products.filter(p => p.inList);
-
-
-  const totalsByStore = useMemo(() => {
-    const totals: Record<string, number> = {};
-    selectedProducts.forEach(p => {
-      const latestByStore: Record<string, number> = {};
-      p.prices.forEach(pr => {
-        if (!latestByStore[pr.store] || newest(pr.date, latestByStore[pr.store])) {
-          latestByStore[pr.store] = pr.price;
-        }
-      });
-      Object.entries(latestByStore).forEach(([s, price]) => {
-        totals[s] = (totals[s] || 0) + price;
-      });
-    });
-    return totals;
-  }, [selectedProducts]);
-
-  function newest(date: string, _price: number) {
-    return true;
-  }
-  const ranking = Object.entries(totalsByStore).sort((a, b) => a[1] - b[1]);
-  const bestStore = ranking[0] || null;
-  return (
-    <div className="min-h-screen bg-gray-100 flex justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="p-4 space-y-4">
-            <h1 className="text-xl font-semibold text-center">🛒 Spesa Smart</h1>
-            <p className="text-xs text-center text-gray-500">📈 Storico & aumenti prezzo</p>
-            <Input placeholder="Barcode" value={barcode} onChange={e => setBarcode(e.target.value)} />
-            <Input placeholder="Nome prodotto" value={productName} onChange={e => setProductName(e.target.value)} />
-
-
-            <Select value={store} onValueChange={setStore}>
-              <SelectItem value="">Seleziona negozio</SelectItem>
-              <SelectItem value="Eurospar Udine">Eurospar Udine</SelectItem>
-              <SelectItem value="Coop Udine">Coop Udine</SelectItem>
-              <SelectItem value="Lidl Udine">Lidl Udine</SelectItem>
-            </Select>
-
-            <Input type="number" step="0.01" placeholder="Prezzo €" value={price} onChange={e => setPrice(e.target.value)} />
-            <Button className="w-full" onClick={addProductPrice}>Salva prezzo</Button>
-
-            {products.map(p => (
-              <div key={p.barcode} className="bg-white rounded-xl p-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Checkbox checked={p.inList} onCheckedChange={() => toggleInList(p.barcode)} />
-                  <p className="font-semibold text-sm">{p.name}</p>
-                </div>
-                <ul className="ml-6 mt-1 text-sm">
-                  {Array.from(new Set(p.prices.map(pr => pr.store))).map(store => (
-                    <li key={store}>
-                      {store}: € {getLastTwoPrices(p.prices, store)[0]?.price.toFixed(2)} {priceTrend(p.prices, store)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-
-            {bestStore && (
-              <div className="bg-green-100 rounded-xl p-3 text-center text-sm font-semibold text-green-800">
-                ✅ Conviene: {bestStore[0]} (€ {bestStore[1].toFixed(2)})
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
-  );
-}
